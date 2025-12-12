@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Neon Breaker: Infinite</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+        body {
+            margin: 0; background-color: #000; overflow: hidden;
+            font-family: 'Arial Black', sans-serif; touch-action: none;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        }
+        canvas { display: block; background: #111; width: 100%; height: 100%; }
+
+        #hud {
+            position: absolute; top: 2vh; left: 3vw;
+            color: rgba(255,255,255,0.9); font-size: 4vw; pointer-events: none; z-index: 10;
+            text-shadow: 0 0 5px #000;
+        }
+        #buff-bar { position: absolute; top: 8vh; left: 3vw; color: #ff0; font-size: 3.5vw; pointer-events: none; }
+
+        #fire-btn {
+            position: absolute; bottom: 12vh; right: 5vw;
+            width: 18vw; height: 18vw; max-width: 90px; max-height: 90px;
+            background: rgba(255, 0, 60, 0.6);
+            border: 3px solid #ff0040; border-radius: 50%;
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 8vw; pointer-events: auto; z-index: 100;
+            box-shadow: 0 0 15px #ff0040; transition: 0.1s;
+        }
+        #fire-btn:active { background: #ff0040; transform: scale(0.95); }
+
+        #menu-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            pointer-events: auto; z-index: 200;
+        }
+        h1 { color: #0ff; margin-bottom: 10px; font-size: 10vw; text-align: center; text-shadow: 0 0 20px #0ff; }
+        .btn {
+            background: transparent; color: #fff; border: 2px solid #fff;
+            padding: 15px 10vw; font-size: 5vw; cursor: pointer; margin: 10px;
+            border-radius: 50px; font-family: inherit; transition: 0.2s;
+        }
+        .admin-btn { border: 1px solid #555; color: #666; font-size: 3vw; padding: 8px 20px; margin-top: 30px; }
+        
+        #level-announce {
+            position: absolute; top: 40%; width: 100%; text-align: center;
+            font-size: 15vw; color: #fff; opacity: 0; pointer-events: none; z-index: 50;
+            text-shadow: 0 0 20px #fff; transition: all 0.5s; transform: scale(2);
+        }
+        #launch-hint {
+            position: absolute; bottom: 25%; width: 100%; text-align: center;
+            color: #fff; font-size: 4vw; animation: pulse 1s infinite;
+            pointer-events: none; display: none;
+        }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        .float-text {
+            position: absolute; font-size: 5vw; font-weight: bold;
+            animation: floatUp 0.8s forwards; pointer-events: none; z-index: 20;
+        }
+        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-30px) scale(1.2); opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="hud">
+        <!-- 这里会动态显示上限 -->
+        <div>LV: <span id="lvl-disp" style="color:#0ff">1</span> <span id="max-lvl-disp">/ 20</span></div>
+        <div>PTS: <span id="score-disp">0</span></div>
+        <div id="god-indicator" style="color:#00ccff; display:none; font-size: 3vw">★ INFINITE ★</div>
+    </div>
+
+    <div id="buff-bar"></div>
+    <div id="launch-hint">TAP TO LAUNCH</div>
+    <div id="fire-btn">🔥</div>
+    <div id="level-announce">LEVEL 1</div>
+
+    <div id="menu-screen">
+        <h1 id="menu-title">NEON<br>BREAKER</h1>
+        <div id="menu-score" style="color:#aaa; margin-bottom:30px; font-size: 4vw">TAP TO START</div>
+        <button class="btn" onclick="startGame()">开始挑战</button>
+        <button class="btn admin-btn" onclick="activateAdmin()">管理员模式</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let animationId = null;
+    let laserTimer = null;
+
+    const BALL_SPEED_FACTOR = 0.0045; 
+    const NORMAL_HP = 6;
+
+    const HP_COLORS = ['#000', '#a0f', '#00f', '#0f0', '#ff0', '#f90', '#f00'];
+    const SOLID_COLOR = '#888'; 
+    const LINKED_COLOR = '#0ff';
+
+    // 前20关固定，之后的随机生成
+    const LEVELS = [
+        ["000000","111111","111111"],
+        ["101010","010101","101010"],
+        ["001100","011110","111111"],
+        ["110011","110011","111111"],
+        ["100001","111111","011110","001100"],
+        ["111111","1X1X1X","111111","1X1X1X"],
+        ["001100","01XX10","1XXXX1","11XX11"],
+        ["101010","0X0X0X","101010","0X0X0X"],
+        ["X1111X","1X11X1","11X111"],
+        ["100001","010010","00XX00","00XX00","010010","100001"],
+        ["X11L1X","11XX11","11XX11","X1L11X"],
+        ["LLLLLL","XXXXXX","111111","XXXXXX","LLLLLL"],
+        ["00X00","0L1L0","11X11","0L1L0","00X00"],
+        ["1X1X1X1","XLLLLLX","1X1X1X1"],
+        ["XXXXXX","L1111L","111111","XXXXXX","111111"],
+        ["11X11X11","LLXLLXLL","11111111"],
+        ["X11L111X","1X1111X1","11X11X11"],
+        ["L0L0L0L","0X0X0X0","L0L0L0L","0X0X0X0"],
+        ["111111","XXXXXX","LLLLLL","XXXXXX","111111"],
+        ["XLXXLX","L1111L","XXLLXX","L1111L","XLXXLX"]
+    ];
+
+    const DROPS = {
+        EXPAND: { id: 1, color: '#0f0', text: '↔️', label: '变宽' },
+        SPLIT:  { id: 2, color: '#0ff', text: '🎱', label: '分裂' },
+        LASER:  { id: 3, color: '#ff0', text: '🔫', label: '激光' },
+        SHRINK: { id: 4, color: '#f00', text: '🤏', label: '变短' },
+        CHAOS:  { id: 5, color: '#800080', text: '🎲', label: '乱跳' } 
+    };
+
+    let state = { level: 0, score: 0, isPlaying: false, godMode: false, laserActive: false };
+    let paddle = { x: 0, y: 0, w: 0, h: 0, c: '#0ff' };
+    let balls = [];
+    let bricks = [];
+    let items = [];
+    let particles = [];
+    let bullets = [];
+    let screenShake = 0;
+    let currentAbsSpeed = 0;
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        currentAbsSpeed = canvas.height * BALL_SPEED_FACTOR;
+        if(paddle) {
+            paddle.w = state.godMode ? canvas.width * 0.35 : canvas.width * 0.25; 
+            paddle.h = canvas.height * 0.02; 
+            paddle.y = canvas.height - (canvas.height * 0.18); 
+        }
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    paddle.x = canvas.width / 2 - paddle.w / 2;
+
+    // ================= 核心逻辑 =================
+
+    // ★ 随机关卡生成器 ★
+    function generateRandomLevel() {
+        const rows = 8 + Math.floor(Math.random() * 6); // 8-13行
+        const cols = 6 + Math.floor(Math.random() * 3); // 6-8列
+        const map = [];
+        
+        for(let r=0; r<rows; r++) {
+            let rowStr = "";
+            for(let c=0; c<cols; c++) {
+                let rand = Math.random();
+                if (rand > 0.65) rowStr += "0";      // 35% 空
+                else if (rand > 0.25) rowStr += "1"; // 40% 普通
+                else if (rand > 0.10) rowStr += "L"; // 15% 连锁
+                else rowStr += "X";                  // 10% 固体
+            }
+            // 确保不会出现全X的死局（简单处理：如果随机到X，有概率变1）
+            if(rowStr.includes("XXXXXX")) rowStr = rowStr.replace(/X/g, "1");
+            map.push(rowStr);
+        }
+        return map;
+    }
+
+    function initLevel(lvlIndex) {
+        state.level = lvlIndex;
+        document.getElementById('lvl-disp').innerText = lvlIndex + 1;
+        
+        // 更新上限显示
+        if (state.godMode) {
+            document.getElementById('max-lvl-disp').innerText = " / ∞";
+        } else {
+            document.getElementById('max-lvl-disp').innerText = " / 20";
+        }
+        
+        const ann = document.getElementById('level-announce');
+        ann.innerText = `LEVEL ${lvlIndex + 1}`;
+        ann.style.opacity = '1'; ann.style.transform = 'scale(1)';
+        setTimeout(() => { ann.style.opacity = '0'; ann.style.transform = 'scale(2)'; }, 1500);
+
+        bricks = []; items = []; bullets = [];
+        
+        // ★ 关卡选择逻辑 ★
+        let map;
+        if (lvlIndex < LEVELS.length) {
+            map = LEVELS[lvlIndex]; // 前20关用固定地图
+        } else {
+            map = generateRandomLevel(); // 20关以后随机生成
+        }
+
+        const rows = map.length;
+        const cols = map[0].length; // 注意：随机生成的cols可能不同
+        
+        const ballDiameter = (canvas.width * 0.025) * 2; 
+        const minGap = ballDiameter * 1.2; 
+        const padding = minGap;
+        const safeMargin = canvas.width * 0.02;
+        const availableWidth = canvas.width - (safeMargin * 2);
+        
+        const brickW = (availableWidth - (padding * (cols - 1))) / cols;
+        const brickH = canvas.height * 0.035;
+
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                const char = map[r][c];
+                if(char !== '0') {
+                    let type = 'normal';
+                    if (char === 'X') type = 'solid';
+                    if (char === 'L') type = 'linked';
+
+                    bricks.push({
+                        x: safeMargin + c * (brickW + padding),
+                        y: (canvas.height * 0.12) + r * (brickH + padding),
+                        w: brickW, h: brickH,
+                        type: type,
+                        hp: type === 'normal' ? NORMAL_HP : 999,
+                        status: 1,
+                        // 随机颜色让无尽模式更多彩
+                        color: HP_COLORS[(r+c+lvlIndex)%6 + 1] 
+                    });
+                }
+            }
+        }
+        
+        if (!state.godMode) { resetBall(); } 
+        else if (balls.length === 0) { spawnGodBall(); }
+        resetBuffs();
+    }
+
+    function resetBall() {
+        balls = [];
+        balls.push({
+            x: paddle.x + paddle.w/2, y: paddle.y - (canvas.width * 0.025),
+            dx: 0, dy: 0, r: canvas.width * 0.022, trail: [], isStuck: true
+        });
+        document.getElementById('launch-hint').style.display = 'block';
+    }
+    
+    function spawnGodBall() {
+        balls.push({
+            x: paddle.x + paddle.w/2, y: paddle.y - (canvas.width * 0.05),
+            dx: currentAbsSpeed * (Math.random() > 0.5 ? 0.5 : -0.5), dy: -currentAbsSpeed, 
+            r: canvas.width * 0.022, trail: [], isStuck: false
+        });
+    }
+
+    function resetBuffs() {
+        state.laserActive = false;
+        document.getElementById('buff-bar').innerText = "";
+        if(!state.godMode) paddle.w = canvas.width * 0.25;
+    }
+
+    function spawnItem(x, y) {
+        if(Math.random() > 0.35) return;
+        const rand = Math.random();
+        let type;
+        if (rand < 0.30) type = DROPS.EXPAND;
+        else if (rand < 0.50) type = DROPS.SPLIT;
+        else if (rand < 0.70) type = DROPS.LASER;
+        else if (rand < 0.85) type = DROPS.SHRINK;
+        else type = DROPS.CHAOS;
+        items.push({ x, y, w: canvas.width*0.08, h: canvas.width*0.08, dy: canvas.height*0.003, type });
+    }
+
+    function applyPowerup(item) {
+        showFloatText(item.type.label, item.type.color);
+        switch(item.type.id) {
+            case 1: paddle.w = Math.min(canvas.width * 0.6, paddle.w * 1.2); break;
+            case 2: 
+                const len = balls.length;
+                if(len < 50) { 
+                    for(let i=0; i<len; i++) {
+                        if(!balls[i].isStuck) balls.push({ ...balls[i], dx: -balls[i].dx, dy: balls[i].dy });
+                    }
+                }
+                break;
+            case 3: 
+                state.laserActive = true;
+                document.getElementById('buff-bar').innerText = "🔫 激光模式";
+                if(laserTimer) clearTimeout(laserTimer);
+                laserTimer = setTimeout(() => { state.laserActive = false; document.getElementById('buff-bar').innerText = ""; }, 10000);
+                break;
+            case 4: paddle.w = Math.max(canvas.width * 0.15, paddle.w * 0.8); break;
+            case 5: balls.forEach(b => { if(!b.isStuck) b.dx = -b.dx; }); break;
+        }
+    }
+
+    function triggerChainReaction() {
+        let count = 0;
+        bricks.forEach(b => {
+            if (b.type === 'linked' && b.status === 1) {
+                b.status = 0; spawnParticles(b.x+b.w/2, b.y+b.h/2, LINKED_COLOR);
+                state.score += 20; spawnItem(b.x, b.y); count++;
+            }
+        });
+        if(count > 0) { shake(5); showFloatText("CHAIN!", "#0ff"); }
+    }
+
+    function handlePlayerAction() {
+        if(!state.isPlaying) return;
+        if(state.godMode) { spawnGodBall(); shake(1); return; }
+
+        let hasStuckBall = false;
+        balls.forEach(b => {
+            if(b.isStuck) {
+                b.isStuck = false; b.dy = -currentAbsSpeed;
+                b.dx = currentAbsSpeed * (Math.random() - 0.5); hasStuckBall = true;
+            }
+        });
+
+        if(hasStuckBall) { document.getElementById('launch-hint').style.display = 'none'; } 
+        else {
+            const bw = canvas.width * 0.015; const bh = canvas.height * 0.02;
+            bullets.push({ x: paddle.x, y: paddle.y, w: bw, h: bh });
+            bullets.push({ x: paddle.x + paddle.w - bw, y: paddle.y, w: bw, h: bh });
+            shake(2);
+        }
+    }
+
+    function update() {
+        if(state.laserActive && Math.random() < 0.15) {
+            const bw = canvas.width * 0.015; const bh = canvas.height * 0.02;
+            bullets.push({ x: paddle.x, y: paddle.y, w: bw, h: bh });
+            bullets.push({ x: paddle.x + paddle.w - bw, y: paddle.y, w: bw, h: bh });
+        }
+        if(paddle.x < 0) paddle.x = 0;
+        if(paddle.x + paddle.w > canvas.width) paddle.x = canvas.width - paddle.w;
+
+        for(let i=items.length-1; i>=0; i--) {
+            let it = items[i]; it.y += it.dy;
+            if(it.y + it.h >= paddle.y && it.y <= paddle.y + paddle.h && it.x + it.w >= paddle.x && it.x <= paddle.x + paddle.w) {
+                applyPowerup(it); items.splice(i, 1); continue;
+            }
+            if(it.y > canvas.height) items.splice(i, 1);
+        }
+
+        for(let i=bullets.length-1; i>=0; i--) {
+            let b = bullets[i]; b.y -= (canvas.height * 0.015);
+            let hit = false;
+            for(let j=0; j<bricks.length; j++) {
+                let br = bricks[j];
+                if(br.status === 1 && rectIntersect(b.x, b.y, b.w, b.h, br.x, br.y, br.w, br.h)) {
+                    hit = true;
+                    if (br.type === 'solid') { spawnParticles(br.x+br.w/2, br.y+br.h/2, '#aaa'); } 
+                    else if (br.type === 'linked') { triggerChainReaction(); } 
+                    else {
+                        br.hp--; state.score += 1;
+                        if(br.hp <= 0) { br.status = 0; state.score += 10; spawnItem(br.x, br.y); spawnParticles(br.x+br.w/2, br.y+br.h/2, '#fff'); } 
+                        else { spawnParticles(br.x+br.w/2, br.y+br.h/2, HP_COLORS[br.hp]); }
+                    }
+                    break;
+                }
+            }
+            if(hit || b.y < 0) bullets.splice(i, 1);
+        }
+
+        for(let i=balls.length-1; i>=0; i--) {
+            let b = balls[i];
+            if(b.isStuck) { b.x = paddle.x + paddle.w/2; b.y = paddle.y - b.r; continue; }
+            b.x += b.dx; b.y += b.dy;
+
+            if(b.x + b.r > canvas.width || b.x - b.r < 0) { b.dx *= -1; shake(1); }
+            if(b.y - b.r < 0) { b.dy *= -1; shake(1); }
+            if(b.y - b.r > canvas.height) { balls.splice(i, 1); continue; }
+
+            if(b.dy > 0 && b.y + b.r >= paddle.y && b.y - b.r <= paddle.y + paddle.h + (canvas.height*0.02) && b.x >= paddle.x - b.r && b.x <= paddle.x + paddle.w + b.r) {
+                let center = paddle.x + paddle.w/2;
+                let hitPos = (b.x - center) / (paddle.w/2);
+                if(hitPos > 0.9) hitPos = 0.9; if(hitPos < -0.9) hitPos = -0.9;
+                let angle = hitPos * (Math.PI / 3); 
+                b.dx = currentAbsSpeed * Math.sin(angle);
+                b.dy = -currentAbsSpeed * Math.cos(angle);
+                shake(3);
+            }
+
+            for(let j=0; j<bricks.length; j++) {
+                let br = bricks[j];
+                if(br.status === 1) {
+                    if(b.x > br.x && b.x < br.x + br.w && b.y > br.y && b.y < br.y + br.h) {
+                        b.dy *= -1;
+                        if(br.type === 'solid') { spawnParticles(b.x, b.y, '#aaa'); shake(3); } 
+                        else if (br.type === 'linked') { triggerChainReaction(); } 
+                        else {
+                            br.hp--;
+                            if(br.hp <= 0) { br.status = 0; state.score += 50; spawnItem(br.x, br.y); spawnParticles(b.x, b.y, '#fff'); } 
+                            else { spawnParticles(b.x, b.y, HP_COLORS[br.hp]); }
+                            shake(2);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        document.getElementById('score-disp').innerText = state.score;
+        
+        // ★ 胜利/下一关判定 ★
+        if(bricks.filter(b => b.status === 1 && b.type !== 'solid').length === 0) {
+            // 如果是普通玩家，到19关(数组索引)就结束
+            if(!state.godMode && state.level >= 19) {
+                stopGame(true);
+            } else {
+                // 管理员模式，或者普通玩家前19关 -> 继续
+                state.level++;
+                initLevel(state.level);
+            }
+        }
+        
+        if(balls.length === 0 && !state.godMode) { stopGame(false); }
+        updateEffects();
+    }
+
+    function draw() {
+        ctx.save();
+        if(screenShake > 0) {
+            ctx.translate((Math.random()-.5)*screenShake, (Math.random()-.5)*screenShake);
+            screenShake *= 0.9; if(screenShake < 0.5) screenShake = 0;
+        }
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(-10, -10, canvas.width+20, canvas.height+20);
+
+        items.forEach(it => {
+            ctx.fillStyle = it.type.color; ctx.fillRect(it.x, it.y, it.w, it.h);
+            ctx.fillStyle = '#000'; ctx.font = `${it.h*0.6}px Arial`; ctx.textAlign = 'center';
+            ctx.fillText(it.type.text, it.x + it.w/2, it.y + it.h*0.75);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(it.x, it.y, it.w, it.h);
+        });
+
+        const pulse = (Math.sin(Date.now() / 200) + 1) / 2 * 0.5 + 0.5;
+
+        bricks.forEach(b => {
+            if(b.status === 1) {
+                if (b.type === 'solid') {
+                    ctx.fillStyle = SOLID_COLOR; ctx.fillRect(b.x, b.y, b.w, b.h);
+                    ctx.strokeStyle = '#999'; ctx.lineWidth = 3; ctx.strokeRect(b.x, b.y, b.w, b.h);
+                    ctx.beginPath(); ctx.moveTo(b.x+4, b.y+4); ctx.lineTo(b.x+b.w-4, b.y+b.h-4); 
+                    ctx.moveTo(b.x+b.w-4, b.y+4); ctx.lineTo(b.x+4, b.y+b.h-4); ctx.stroke();
+                } else if (b.type === 'linked') {
+                    ctx.fillStyle = LINKED_COLOR; ctx.globalAlpha = pulse;
+                    ctx.shadowBlur = 15; ctx.shadowColor = LINKED_COLOR;
+                    ctx.fillRect(b.x, b.y, b.w, b.h);
+                    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(b.x, b.y, b.w, b.h);
+                } else {
+                    let color = HP_COLORS[b.hp];
+                    ctx.fillStyle = color; ctx.shadowBlur = 5; ctx.shadowColor = color;
+                    ctx.fillRect(b.x, b.y, b.w, b.h);
+                    if(b.hp <= 3) { ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(b.x+b.w*0.3, b.y+b.h*0.3, b.w*0.4, b.h*0.4); }
+                }
+            }
+        });
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#ff0'; bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+        ctx.fillStyle = paddle.c; ctx.shadowBlur = 15; ctx.shadowColor = paddle.c;
+        ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#fff';
+        balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); });
+
+        particles.forEach(p => { ctx.fillStyle = p.c; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, p.s, p.s); });
+        ctx.globalAlpha = 1;
+        ctx.restore();
+    }
+
+    function gameLoop() { if(state.isPlaying) { update(); draw(); animationId = requestAnimationFrame(gameLoop); } }
+    function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) { return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1; }
+    function spawnParticles(x,y,c) { const s = canvas.width * 0.01; for(let i=0;i<4;i++) particles.push({x,y,dx:(Math.random()-.5)*5,dy:(Math.random()-.5)*5,life:0.8,c,s}); }
+    function updateEffects() { for(let i=particles.length-1;i>=0;i--) { let p=particles[i]; p.x+=p.dx; p.y+=p.dy; p.life-=0.05; if(p.life<=0) particles.splice(i,1); } }
+    function shake(v) { screenShake = v; }
+    function showFloatText(text, color) {
+        const div = document.createElement('div'); div.className = 'float-text';
+        div.innerText = text; div.style.color = color;
+        div.style.left = (paddle.x + paddle.w/2) + 'px'; div.style.top = (paddle.y - 50) + 'px';
+        document.body.appendChild(div); setTimeout(() => div.remove(), 800);
+    }
+
+    function startGame() {
+        if(animationId) cancelAnimationFrame(animationId);
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>{});
+        document.getElementById('menu-screen').style.display = 'none';
+        state.score = 0; state.isPlaying = true;
+        resize(); initLevel(0); gameLoop();
+    }
+    function stopGame(win) {
+        state.isPlaying = false; if(animationId) cancelAnimationFrame(animationId);
+        const menu = document.getElementById('menu-screen');
+        menu.style.display = 'flex';
+        document.getElementById('menu-title').innerText = win ? "VICTORY!" : "GAME OVER";
+        document.getElementById('menu-title').style.color = win ? "#ffd700" : "#ff0055";
+    }
+    
+    const moveHandler = (clientX) => { if(state.isPlaying) paddle.x = clientX - paddle.w / 2; };
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); moveHandler(e.touches[0].clientX); }, {passive: false});
+    canvas.addEventListener('mousemove', (e) => moveHandler(e.clientX));
+    
+    function handleAction(e) { 
+        if(e && e.target.id !== 'menu-screen' && !e.target.classList.contains('btn')) { 
+            if(e.cancelable) e.preventDefault(); 
+            handlePlayerAction(); 
+        } 
+    }
+    const btn = document.getElementById('fire-btn');
+    btn.addEventListener('mousedown', handleAction); btn.addEventListener('touchstart', handleAction);
+    canvas.addEventListener('mousedown', handleAction);
+
+    function activateAdmin() {
+        let pwd = prompt("输入管理员密码:");
+        if(pwd === "fg666") {
+            alert("【造物主模式开启】\n无限关卡 + 无限造球\n第21关后开始随机生成地图");
+            state.godMode = true;
+            document.getElementById('god-indicator').style.display = 'block';
+            document.getElementById('fire-btn').innerText = "🎱";
+            document.getElementById('fire-btn').style.background = "rgba(0, 100, 255, 0.6)";
+            document.getElementById('fire-btn').style.borderColor = "#00ccff";
+            paddle.c = '#00ccff'; 
+            startGame();
+        } else { alert("密码错误"); }
+    }
+</script>
+</body>
+</html>
