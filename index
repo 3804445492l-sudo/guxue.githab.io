@@ -3,69 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的第一个网站</title>
+    <title>我的个人主页</title>
+    <!-- 引入字体图标库 (Font Awesome) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* CSS 部分：负责网页的样子 */
+        /* 全局样式 */
+        :root {
+            --bg-color: #0d1117; /* GitHub 暗色背景 */
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --card-bg: #161b22;
+            --border-color: #30363d;
+        }
+
         body {
-            font-family: 'Microsoft YaHei', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             margin: 0;
             padding: 0;
-            background-color: #f4f4f9;
-            color: #333;
-            text-align: center;
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
         }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            padding: 40px 20px;
+        }
+
+        /* 头部区域 */
         header {
-            background-color: #4CAF50;
-            color: white;
-            padding: 20px 0;
+            text-align: center;
+            margin-bottom: 50px;
         }
-        main {
-            padding: 50px 20px;
+
+        .avatar {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 4px solid var(--border-color);
+            margin-bottom: 20px;
+            object-fit: cover;
         }
-        .card {
-            background: white;
-            max-width: 600px;
-            margin: 0 auto;
+
+        h1 {
+            color: #fff;
+            margin: 10px 0;
+        }
+
+        .bio {
+            color: #8b949e;
+            font-size: 1.1em;
+        }
+
+        .social-links {
+            margin-top: 20px;
+        }
+
+        .social-links a {
+            color: var(--text-color);
+            font-size: 24px;
+            margin: 0 15px;
+            transition: color 0.3s;
+        }
+
+        .social-links a:hover {
+            color: var(--accent-color);
+        }
+
+        /* 项目展示区 */
+        .section-title {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .project-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, border-color 0.2s;
         }
-        button {
-            background-color: #008CBA;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
+
+        .project-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-color);
         }
-        button:hover {
-            background-color: #005f7f;
+
+        .project-card h3 {
+            margin-top: 0;
+            color: var(--accent-color);
+        }
+
+        .project-card p {
+            font-size: 0.9em;
+            color: #8b949e;
+        }
+
+        .repo-link {
+            display: inline-block;
+            margin-top: 10px;
+            text-decoration: none;
+            color: #fff;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .repo-link:hover {
+            text-decoration: underline;
+        }
+
+        /* 底部 */
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            font-size: 0.8em;
+            color: #8b949e;
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>欢迎来到我的网站</h1>
-    </header>
+    <div class="container">
+        <!-- 头部个人信息 -->
+        <header>
+            <!-- 请替换下面的图片链接为你自己的GitHub头像链接 -->
+            <img src="https://github.com/github.png" alt="头像" class="avatar">
+            <h1>你的名字 / GitHub ID</h1>
+            <p class="bio">热爱编程 | 全栈开发者 | 开源爱好者</p>
+            
+            <div class="social-links">
+                <a href="https://github.com/你的用户名" target="_blank"><i class="fab fa-github"></i></a>
+                <a href="mailto:你的邮箱@gmail.com"><i class="fas fa-envelope"></i></a>
+                <a href="#" target="_blank"><i class="fab fa-twitter"></i></a>
+                <a href="#" target="_blank"><i class="fas fa-blog"></i></a>
+            </div>
+        </header>
 
-    <main>
-        <div class="card">
-            <h2>这是一个简单的 HTML 页面</h2>
-            <p>你好！这是我编写的第一个网页结构。HTML 负责结构，CSS 负责美化，JS 负责互动。</p>
-            <br>
-            <button onclick="changeText()">点我试一试</button>
-            <p id="demo-text" style="color: gray; margin-top: 10px;"></p>
-        </div>
-    </main>
+        <!-- 项目展示 -->
+        <section>
+            <h2 class="section-title">我的项目</h2>
+            <div class="projects-grid">
+                
+                <!-- 项目卡片 1 -->
+                <div class="project-card">
+                    <h3>Awesome Project</h3>
+                    <p>这是一个很酷的 Python 数据分析工具，可以自动化处理 Excel 表格。</p>
+                    <div style="margin-top: 10px;">
+                        <span style="color: #f1e05a; font-size: 0.8em;">● JavaScript</span>
+                    </div>
+                    <a href="#" class="repo-link">查看源码 <i class="fas fa-arrow-right"></i></a>
+                </div>
 
-    <script>
-        // JavaScript 部分：负责网页的互动
-        function changeText() {
-            document.getElementById('demo-text').innerHTML = "你刚刚点击了按钮！恭喜你完成了第一次交互。";
-        }
-    </script>
+                <!-- 项目卡片 2 -->
+                <div class="project-card">
+                    <h3>Personal Blog</h3>
+                    <p>基于 Hugo 搭建的静态博客主题，支持暗黑模式和移动端适配。</p>
+                    <div style="margin-top: 10px;">
+                        <span style="color: #563d7c; font-size: 0.8em;">● CSS</span>
+                    </div>
+                    <a href="#" class="repo-link">查看源码 <i class="fas fa-arrow-right"></i></a>
+                </div>
+
+                <!-- 项目卡片 3 -->
+                <div class="project-card">
+                    <h3>Todo App</h3>
+                    <p>使用 React 和 Firebase 开发的在线待办事项列表。</p>
+                    <div style="margin-top: 10px;">
+                        <span style="color: #61dafb; font-size: 0.8em;">● React</span>
+                    </div>
+                    <a href="#" class="repo-link">查看源码 <i class="fas fa-arrow-right"></i></a>
+                </div>
+
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2023 Built with GitHub Pages</p>
+        </footer>
+    </div>
 
 </body>
 </html>
